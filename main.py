@@ -20,10 +20,13 @@ with open("ip_list.txt", "r") as f:
     ip_list = f.read().splitlines()
     pbar = tqdm(total=len(ip_list), desc="Connecting to switches")
     # Function to connect to a switch and get output
+
     def connect_to_switch(switch_ip):
         try:
-            net_connect = ConnectHandler(ip=switch_ip, device_type='cisco_ios', username=username, password=password)
-            output = net_connect.send_command(f"show mac address-table | include {mac_address}")
+            net_connect = ConnectHandler(
+                ip=switch_ip, device_type='cisco_ios', username=username, password=password)
+            output = net_connect.send_command(
+                f"show mac address-table | include {mac_address}")
             net_connect.disconnect()
         except:
             print("TCP connection to device failed for IP address: ", switch_ip)
@@ -33,7 +36,8 @@ with open("ip_list.txt", "r") as f:
         for line in output.split("\n"):
             if "    " in line:
                 elements = line.split()
-                table.append([switch_ip, elements[1], elements[0], elements[3]])
+                table.append(
+                    [switch_ip, elements[1], elements[0], elements[3]])
         # Update the progress bar
         pbar.update(1)
 
@@ -50,5 +54,6 @@ with open("ip_list.txt", "r") as f:
     pbar.close()
 
 print("Results for all switches:")
-table = [row for row in table if not any(x in row[3] for x in ["Po1", "Po2", "Po3"])]
+table = [row for row in table if not any(
+    x in row[3] for x in ["Po1", "Po2", "Po3"])]
 print(tabulate.tabulate(table, headers="firstrow", tablefmt="fancy_grid"))
