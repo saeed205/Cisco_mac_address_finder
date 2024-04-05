@@ -7,21 +7,11 @@ This script is a Python script that is used to search for a specific MAC address
 
 To use this script, you need to have a list of IP addresses of the switches in a text file named "ip_list.txt" in the same directory as the script. The script will read the IP addresses from this file and connect to each switch in parallel using the netmiko library.
 
-You also need to install the following libraries:
-
--   `netmiko`
--   `tabulate`
--   `tqdm`
--   `getpass`
--   `threading`
-
-You can install them using pip:
-
-    `pip install netmiko tabulate tqdm getpass`
+You also need to install the libraries by `pip install -r requirements.txt`
 
 ## Usage
 
-1.  Run the script using the command `python mac_address_search.py`
+1.  Run the script using the command `python main.py`
 2.  The script will prompt you to enter your username and password. These will be used to connect to the switches.
 3.  The script will then prompt you to enter the MAC address you want to search for.
 4.  The script will search for the MAC address on all the switches in the "ip_list.txt" file, and also on DHCP servers.
