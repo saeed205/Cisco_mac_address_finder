@@ -1,116 +1,103 @@
+import subprocess
 from netmiko import ConnectHandler
 from threading import Thread
 from tqdm import tqdm
-
-import subprocess
 import tabulate
 import getpass
+from colorama import Fore, Style, init
 
+# Initialize colorama
+init()
 
-def set_mac_address_on_dhcp_servers(mac_address_full):
+def read_dhcp_servers(filename):
+    with open(filename, "r") as file:
+        dhcp_servers = file.read().splitlines()
+    return dhcp_servers
+
+def set_mac_address_on_dhcp_servers(mac_address_full, dhcp_servers):
     mac_addressPC = mac_address_full.replace(":", "").replace(".", "")
-    dhcp_servers = ["Enter DHCP Server1",
-                    "Enter DHCP Server2",
-                    "Enter DHCP Server3"]
-
+    
     total_scopes = 0
     current_scope = 0
     for server in dhcp_servers:
-        # Get all scope IDs on the DHCP server
-        ps_command = f"Get-DhcpServerv4Scope -ComputerName {
-            server} | Select-Object ScopeId"
-        output = subprocess.run(
-            ["powershell", ps_command], capture_output=True)
+        ps_command = f"Get-DhcpServerv4Scope -ComputerName {server} | Select-Object ScopeId"
+        output = subprocess.run(["powershell", ps_command], capture_output=True)
         scope_ids = output.stdout.decode("utf-8").strip().split("\n")
         total_scopes += len(scope_ids)
 
     for server in dhcp_servers:
-        # Get all scope IDs on the DHCP server
-        ps_command = f"Get-DhcpServerv4Scope -ComputerName {
-            server} | Select-Object ScopeId"
-        output = subprocess.run(
-            ["powershell", ps_command], capture_output=True)
+        ps_command = f"Get-DhcpServerv4Scope -ComputerName {server} | Select-Object ScopeId"
+        output = subprocess.run(["powershell", ps_command], capture_output=True)
         scope_ids = output.stdout.decode("utf-8").strip().split("\n")
 
         for scope_id in scope_ids:
             scope_id = scope_id.strip().split(" ")[-1]
-            # Search for the MAC address on each scope ID
-            ps_command = f"Get-DhcpServerv4Lease -ComputerName {server} -ScopeId {
-                scope_id} -ClientId {mac_addressPC} | Select-Object IPAddress"
-            output = subprocess.run(
-                ["powershell", ps_command], capture_output=True)
+            ps_command = f"Get-DhcpServerv4Lease -ComputerName {server} -ScopeId {scope_id} -ClientId {mac_addressPC} | Select-Object IPAddress"
+            output = subprocess.run(["powershell", ps_command], capture_output=True)
             output_str = output.stdout.decode("utf-8")
             current_scope += 1
             progress = (current_scope / total_scopes) * 100
-            print(f"{current_scope} out of {total_scopes} scopes searched. {progress:.2f}% completed.")
+            print(f"{Fore.BLUE}🔍 {current_scope} out of {total_scopes} scopes searched. {progress:.2f}% completed.{Style.RESET_ALL}")
             if "IPAddress" in output_str:
                 PC_ip = output_str.strip().split(" ")[-1]
-                break
-        else:
-            continue
-        break
-    else:
-        PC_ip = None
+                return PC_ip
+    return None
 
-    return PC_ip
+def connect_to_switch(switch_ip, username, password, mac_address, table, pbar):
+    try:
+        net_connect = ConnectHandler(ip=switch_ip, device_type='cisco_ios', username=username, password=password)
+        output = net_connect.send_command(f"show mac address-table | include {mac_address}")
+        net_connect.disconnect()
+    except:
+        print(f"{Fore.RED}❌ TCP connection to device failed for IP address: {switch_ip}{Style.RESET_ALL}")
+        pbar.update(1)
+        return
 
+    for line in output.split("\n"):
+        if "    " in line:
+            elements = line.split()
+            if elements[3] not in ["Po1", "Po2", "Po3"]:
+                table.append([switch_ip, elements[1], elements[0], elements[3]])
+    pbar.update(1)
 
-username = input("Enter Username: ")
-password = getpass.getpass("Enter Password: ")
+def main():
+    print(f"{Fore.GREEN}Welcome to the MAC Address Finder Tool!{Style.RESET_ALL}")
+    username = input(f"{Fore.YELLOW}Enter Username: {Style.RESET_ALL}")
+    password = getpass.getpass(f"{Fore.YELLOW}Enter Password: {Style.RESET_ALL}")
 
-while True:
-    mac_address = input("Enter the MAC address you want to search for: ")
+    while True:
+        mac_address = input(f"{Fore.CYAN}Enter the MAC address you want to search for: {Style.RESET_ALL}").strip()
 
-    # Initialize table
-    table = []
-    table.append(["Switch IP", "MAC Address", "VLAN", "Port"])
+        table = [["Switch IP", "MAC Address", "VLAN", "Port"]]
+        with open("ip_list.txt", "r") as f:
+            ip_list = f.read().splitlines()
 
-    # Read the IP addresses from the file
-    with open("ip_list.txt", "r") as f:
-        ip_list = f.read().splitlines()
-        pbar = tqdm(total=len(ip_list), desc="Connecting to switches")
-        # Function to connect to a switch and get output
+        pbar = tqdm(total=len(ip_list), desc="🔗 Connecting to switches")
 
-        def connect_to_switch(switch_ip):
-            try:
-                net_connect = ConnectHandler(
-                    ip=switch_ip, device_type='cisco_ios', username=username, password=password)
-                output = net_connect.send_command(
-                    f"show mac address-table | include {mac_address}")
-                net_connect.disconnect()
-            except:
-                print("TCP connection to device failed for IP address: ", switch_ip)
-                return
-
-            # Parse the output
-            for line in output.split("\n"):
-                if "    " in line:
-                    elements = line.split()
-                    table.append(
-                        [switch_ip, elements[1], elements[0], elements[3]])
-            # Update the progress bar
-            pbar.update(1)
-
-        # Create threads
         threads = []
         for switch_ip in ip_list:
-            t = Thread(target=connect_to_switch, args=(switch_ip,))
+            t = Thread(target=connect_to_switch, args=(switch_ip, username, password, mac_address, table, pbar))
             threads.append(t)
             t.start()
 
-        # Wait for all threads to complete
         for t in threads:
             t.join()
         pbar.close()
 
-    print("Results for all switches:")
-    table = [row for row in table if not any(
-        x in row[3] for x in ["Po1", "Po2", "Po3"])]
-    print(tabulate.tabulate(table, headers="firstrow", tablefmt="fancy_grid"))
-    if input("Do you want to find IP of this Mac? (Y/N)").lower() == 'y':
-        mac_address_full = input(
-            "Enter the MAC address you want to search for: ")
-        PC_ip = set_mac_address_on_dhcp_servers(mac_address_full)
-        print(f"IP address for MAC address {mac_address_full} is {PC_ip}")
-    if input("Do you want to continue? (Y/N)").lower() != 'y':
-        break
+        print(f"{Fore.GREEN}Results for all switches:{Style.RESET_ALL}")
+        print(tabulate.tabulate(table, headers="firstrow", tablefmt="fancy_grid"))
+
+        if input(f"{Fore.MAGENTA}Do you want to find IP of this Mac? (Y/N): {Style.RESET_ALL}").strip().lower() == 'y':
+            mac_address_full = input(f"{Fore.CYAN}Enter the full MAC address you want to search for: {Style.RESET_ALL}").strip()
+            dhcp_servers = read_dhcp_servers("dhcp_servers.txt")
+            PC_ip = set_mac_address_on_dhcp_servers(mac_address_full, dhcp_servers)
+            if PC_ip:
+                print(f"{Fore.GREEN}✅ IP address for MAC address {mac_address_full} is {PC_ip}{Style.RESET_ALL}")
+            else:
+                print(f"{Fore.RED}❌ IP address for MAC address {mac_address_full} not found.{Style.RESET_ALL}")
+
+        if input(f"{Fore.MAGENTA}Do you want to continue? (Y/N): {Style.RESET_ALL}").strip().lower() != 'y':
+            break
+
+if __name__ == "__main__":
+    main()
