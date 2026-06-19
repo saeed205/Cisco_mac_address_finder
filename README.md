@@ -1,20 +1,33 @@
 # MAC Address Finder Tool
 
-This tool allows users to search for MAC addresses on multiple network switches and optionally find the corresponding IP address through DHCP servers. The tool uses Python and various libraries to automate the process of querying switches and DHCP servers to retrieve the necessary information.
+This tool searches for a MAC address across multiple Cisco IOS switches and can
+optionally resolve the matching IP address from Windows DHCP servers. It queries
+the switches concurrently and presents the results (switch IP, VLAN, and port)
+in a table.
 
 ## Features
 
-- **Search MAC addresses on network switches:** The tool connects to a list of network switches and searches for the specified MAC address, displaying the results including the switch IP, VLAN, and port.
-- **Retrieve IP address from DHCP servers:** If the user opts to find the IP address associated with the MAC address, the tool will search the provided DHCP servers for this information.
+- **Search MAC addresses on network switches:** Connects to every switch in
+  `ip_list.txt` concurrently and reports where the MAC address is learned,
+  including the switch IP, VLAN, and port.
+- **Retrieve IP address from DHCP servers:** Optionally searches the Windows
+  DHCP servers listed in `dhcp_servers.txt` for the lease matching the MAC.
+- **Input validation:** Accepts MAC addresses in any common notation
+  (`aa:bb:cc:dd:ee:ff`, `aa-bb-...`, `aabb.ccdd.eeff`, or `aabbccddeeff`) and
+  normalizes them automatically.
+- **Robust connectivity:** Bounded concurrency, per-connection timeouts, and
+  clear logging instead of silently swallowed errors.
 
 ## Requirements
 
-- Python 3.x
-- Required Python libraries:
+- Python 3.9+
+- Required Python libraries (see `requirements.txt`):
   - `netmiko`
   - `tqdm`
   - `tabulate`
   - `colorama`
+- For the optional DHCP lookup: a Windows environment (or a host with `pwsh`)
+  where the `DhcpServer` PowerShell module is available.
 
 ## Installation
 
@@ -26,46 +39,52 @@ This tool allows users to search for MAC addresses on multiple network switches 
 
 2. **Install the required Python libraries:**
     ```bash
-    pip install netmiko tqdm tabulate colorama
+    pip install -r requirements.txt
     ```
 
-3. **Create the necessary files:**
-    - `ip_list.txt`: A text file containing the IP addresses of the switches, one per line.
-    - `dhcp_servers.txt`: A text file containing the hostnames or IP addresses of the DHCP servers, one per line.
+3. **Create the inventory files** from the provided templates:
+    ```bash
+    cp ip_list.txt.example ip_list.txt
+    cp dhcp_servers.txt.example dhcp_servers.txt
+    ```
+    Then edit `ip_list.txt` (switch IPs, one per line) and `dhcp_servers.txt`
+    (DHCP server hostnames/IPs, one per line). These files are git-ignored so
+    your real addresses are never committed.
 
 ## Usage
 
-1. **Run the script:**
-    ```bash
-    python main.py
-    ```
-
-2. **Follow the prompts:**
-    - Enter your username and password for the switches.
-    - Enter the MAC address you want to search for.
-    - If you choose to find the IP address for the MAC, enter the full MAC address when prompted.
-
-## Example
-
 ```bash
-$ python main.py
+python main.py
 ```
 
-You will be prompted to enter your username and password, followed by the MAC address you want to search for. The tool will then connect to the switches listed in `ip_list.txt` and search for the specified MAC address. The results will be displayed in a table format.
+Optional arguments:
 
-If you choose to find the IP address for the MAC, you will be prompted to enter the full MAC address, and the tool will search the DHCP servers listed in `dhcp_servers.txt` for the corresponding IP address.
+```text
+--ip-list PATH      Switch IP list file (default: ip_list.txt)
+--dhcp-list PATH    DHCP server list file (default: dhcp_servers.txt)
+--username NAME     Switch username (prompted if omitted)
+--workers N         Concurrent switch connections (default: 10)
+--no-color          Disable colored output
+-v, --verbose       Enable debug logging
+```
+
+Follow the prompts to enter your credentials and the MAC address to search for.
+If you choose to resolve the IP, the tool searches the configured DHCP servers.
 
 ## File Descriptions
 
-- `main.py`: The main script to run the MAC address finder tool.
-- `ip_list.txt`: A list of switch IP addresses to be queried.
-- `dhcp_servers.txt`: A list of DHCP server hostnames or IP addresses to be queried.
+- `main.py`: The main script.
+- `ip_list.txt`: Switch IP addresses to query (created from the template).
+- `dhcp_servers.txt`: DHCP servers to query (created from the template).
+- `*.example`: Templates for the inventory files.
 
 ## Notes
 
-- Ensure you have the necessary permissions to access the switches and DHCP servers.
-- The tool uses `subprocess` to run PowerShell commands on the DHCP servers. Ensure PowerShell is available on your system.
-- The tool assumes that the network switches are Cisco IOS devices. Modify the `ConnectHandler` parameters as needed for different device types.
+- Ensure you have permission to access the switches and DHCP servers.
+- The DHCP lookup uses PowerShell (`pwsh` or `powershell`) and the `DhcpServer`
+  module; it only works where those are available.
+- The tool assumes Cisco IOS switches. Adjust the `device_type` in
+  `find_mac_on_switch` for other platforms.
 
 ## License
 
