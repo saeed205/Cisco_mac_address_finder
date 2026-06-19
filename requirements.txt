@@ -1,6 +1,4 @@
-netmiko
-tabulate
-tqdm
-getpass4
-threading
-colorama
+netmiko>=4.3.0
+tabulate>=0.9.0
+tqdm>=4.66.0
+colorama>=0.4.6

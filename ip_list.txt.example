@@ -1,0 +1,6 @@
+# One switch IP address per line. Lines starting with '#' are ignored.
+# Copy this file to ip_list.txt and fill in your own switches.
+192.168.1.1
+192.168.1.2
+192.168.1.3
+192.168.1.4

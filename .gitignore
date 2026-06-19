@@ -128,3 +128,8 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Project inventory files (may contain real network addresses).
+# Use the provided *.example templates as a starting point.
+ip_list.txt
+dhcp_servers.txt
